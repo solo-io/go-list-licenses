@@ -609,6 +609,7 @@ displayed. It helps assessing the changes importance.
 		if *prunePath != "" {
 			packageString = strings.TrimPrefix(packageString, *prunePath)
 		}
+		license = refineLicenseName(packageString, license)
 		if *useCsv {
 			err = csvW.Write([]string{packageString, pathString, license})
 		} else {
@@ -646,7 +647,6 @@ func getPathString(rawPath, trimPrefix string, replacer *strings.Replacer) strin
 	}
 	pathString := strings.TrimPrefix(rawPath, trimPrefix)
 	pathString = replacer.Replace(pathString)
-	//fmt.Printf("\n=======\n%v========\n", pathString)
 	parts := strings.Split(pathString, "/")
 	if len(parts) == 0 {
 		return ""
@@ -692,6 +692,24 @@ func getPathString(rawPath, trimPrefix string, replacer *strings.Replacer) strin
 	}
 	fmt.Printf("\n-----------\n%v\n--------\n", pathString)
 	return pathString
+}
+
+const (
+	licenseMIT    = "MIT License"
+	licenseApache = "Apache License 2.0"
+)
+
+func refineLicenseName(pkg, candidate string) string {
+	switch pkg {
+	case "github.com/ghodss/yaml":
+		return licenseMIT
+	case "github.com/jmespath/go-jmespath":
+		return licenseApache
+	case "sigs.k8s.io/yaml":
+		return licenseMIT
+	default:
+		return candidate
+	}
 }
 
 func main() {
