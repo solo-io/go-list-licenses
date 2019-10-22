@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -15,7 +16,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/pmezard/licenses/assets"
+	"github.com/solo-io/go-list-licenses/assets"
 )
 
 type Template struct {
@@ -553,7 +554,11 @@ displayed. It helps assessing the changes importance.
 	}
 	all := flag.Bool("a", false, "display all individual packages")
 	words := flag.Bool("w", false, "display words not matching license template")
+	printConfidence := flag.Bool("print-confidence", false, "display confidence level (default false)")
+	useCsv := flag.Bool("csv", false, "print in csv format (default false)")
+	prunePath := flag.String("prune-path", "", "prefix path to remove from the package and file specs during display output, ex: 'github.com/solo-io/gloo/vendor/'")
 	flag.Parse()
+	replacer := getPathReplacer()
 	if flag.NArg() < 1 {
 		return fmt.Errorf("expect at least one package argument")
 	}
@@ -571,13 +576,18 @@ displayed. It helps assessing the changes importance.
 		}
 	}
 	w := tabwriter.NewWriter(os.Stdout, 1, 4, 2, ' ', 0)
+	csvW := csv.NewWriter(os.Stdout)
 	for _, l := range licenses {
 		license := "?"
 		if l.Template != nil {
 			if l.Score > .99 {
 				license = fmt.Sprintf("%s", l.Template.Title)
 			} else if l.Score >= confidence {
-				license = fmt.Sprintf("%s (%2d%%)", l.Template.Title, int(100*l.Score))
+				if *printConfidence {
+					license = fmt.Sprintf("%s (%2d%%)", l.Template.Title, int(100*l.Score))
+				} else {
+					license = fmt.Sprintf("%s", l.Template.Title)
+				}
 				if *words && len(l.ExtraWords) > 0 {
 					license += "\n\t+words: " + strings.Join(l.ExtraWords, ", ")
 				}
@@ -585,17 +595,66 @@ displayed. It helps assessing the changes importance.
 					license += "\n\t-words: " + strings.Join(l.MissingWords, ", ")
 				}
 			} else {
-				license = fmt.Sprintf("? (%s, %2d%%)", l.Template.Title, int(100*l.Score))
+				if *printConfidence {
+					license = fmt.Sprintf("? (%s, %2d%%)", l.Template.Title, int(100*l.Score))
+				} else {
+					license = "UNKNOWN"
+				}
 			}
 		} else if l.Err != "" {
 			license = strings.Replace(l.Err, "\n", " ", -1)
 		}
-		_, err = w.Write([]byte(l.Package + "\t" + license + "\n"))
+		packageString := l.Package
+		pathString := getPathString(l.Path, *prunePath, replacer)
+		if *prunePath != "" {
+			packageString = strings.TrimPrefix(packageString, *prunePath)
+		}
+		if *useCsv {
+			err = csvW.Write([]string{packageString, pathString, license})
+		} else {
+			_, err = w.Write([]byte(packageString + "\t" + license + "\n"))
+		}
 		if err != nil {
 			return err
 		}
 	}
+	if *useCsv {
+		csvW.Flush()
+		return nil
+	}
 	return w.Flush()
+}
+
+func getPathReplacer() *strings.Replacer {
+	return strings.NewReplacer(
+		"k8s.io", "github.com/kubernetes",
+		"golang.org/x", "github.com/golang",
+		"go.uber.org", "github.com/uber-go",
+	)
+}
+
+// try to trim and substitute path elements, if available
+func getPathString(rawPath, trimPrefix string, replacer *strings.Replacer) string {
+	if trimPrefix == "" {
+		return rawPath
+	}
+	pathString := strings.TrimPrefix(rawPath, trimPrefix)
+	pathString = replacer.Replace(pathString)
+	parts := strings.Split(pathString, "/")
+	if len(parts) == 0 {
+		return ""
+	}
+	switch {
+	case len(parts) < 3:
+		return pathString
+	case parts[0] == "github.com":
+		githubFilepathParts := []string{parts[0], parts[1], parts[2], "blob/master"}
+		githubFilepathParts = append(githubFilepathParts, parts[3:]...)
+		refinedString := strings.Join(githubFilepathParts, "/")
+		return refinedString
+	}
+	fmt.Println(pathString)
+	return pathString
 }
 
 func main() {

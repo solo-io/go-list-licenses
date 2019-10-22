@@ -1,4 +1,20 @@
-[![Build Status](https://travis-ci.org/pmezard/licenses.png?branch=master)](https://travis-ci.org/pmezard/licenses)
+Fork of https://github.com/pmezard/licenses
+
+- Modified to include:
+  - CSV output
+  - Link to actual license
+
+# Usage
+
+```bash
+licenses github.com/solo-io/gloo/projects/gloo/cmd
+```
+
+
+
+---
+
+original readme below:
 
 # What is it?
 
