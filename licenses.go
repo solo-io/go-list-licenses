@@ -630,6 +630,12 @@ func getPathReplacer() *strings.Replacer {
 		"k8s.io", "github.com/kubernetes",
 		"golang.org/x", "github.com/golang",
 		"go.uber.org", "github.com/uber-go",
+		"cloud.google.com/go", "github.com/googleapis/google-cloud-go",
+		"google.golang.org/grpc", "github.com/grpc/grpc-go",
+		"istio.io", "github.com/istio",
+		"contrib.go.opencensus.io/exporter/prometheus", "github.com/census-ecosystem/opencensus-go-exporter-prometheus",
+		"google.golang.org/genproto", "github.com/googleapis/go-genproto",
+		"sigs.k8s.io", "github.com/kubernetes-sigs",
 	)
 }
 
@@ -640,6 +646,7 @@ func getPathString(rawPath, trimPrefix string, replacer *strings.Replacer) strin
 	}
 	pathString := strings.TrimPrefix(rawPath, trimPrefix)
 	pathString = replacer.Replace(pathString)
+	//fmt.Printf("\n=======\n%v========\n", pathString)
 	parts := strings.Split(pathString, "/")
 	if len(parts) == 0 {
 		return ""
@@ -652,8 +659,38 @@ func getPathString(rawPath, trimPrefix string, replacer *strings.Replacer) strin
 		githubFilepathParts = append(githubFilepathParts, parts[3:]...)
 		refinedString := strings.Join(githubFilepathParts, "/")
 		return refinedString
+	case parts[0] == "gopkg.in":
+		// gopkg.in/pkg.v3      → github.com/go-pkg/pkg (branch/tag v3, v3.N, or v3.N.M)
+		// gopkg.in/user/pkg.v3 → github.com/user/pkg   (branch/tag v3, v3.N, or v3.N.M)
+		githubFilepathParts := []string{"github.com"}
+		hasUserSpec := len(strings.Split(parts[1], ".")) == 1
+		if hasUserSpec {
+			userSpec := parts[1]
+			pkgSpec := parts[2]
+			pkgParts := strings.Split(pkgSpec, ".")
+			if len(pkgParts) != 2 {
+				return "UNKNOWN-version parse error"
+			}
+			version := pkgParts[1]
+			githubFilepathParts = append(githubFilepathParts, userSpec, "blob", version)
+			githubFilepathParts = append(githubFilepathParts, parts[3:]...)
+			refinedString := strings.Join(githubFilepathParts, "/")
+			return refinedString
+		} else {
+			pkgSpec := parts[1]
+			pkgParts := strings.Split(pkgSpec, ".")
+			if len(pkgParts) != 2 {
+				return "UNKNOWN-version parse error"
+			}
+			pkgName := pkgParts[0]
+			version := pkgParts[1]
+			githubFilepathParts = append(githubFilepathParts, fmt.Sprintf("go-%v", pkgName), "blob", version)
+			githubFilepathParts = append(githubFilepathParts, parts[2:]...)
+			refinedString := strings.Join(githubFilepathParts, "/")
+			return refinedString
+		}
 	}
-	fmt.Println(pathString)
+	fmt.Printf("\n-----------\n%v\n--------\n", pathString)
 	return pathString
 }
 
