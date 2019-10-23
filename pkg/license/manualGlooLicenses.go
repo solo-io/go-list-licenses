@@ -1,4 +1,4 @@
-package main
+package license
 
 const glooProductName = "gloo"
 

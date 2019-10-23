@@ -1,4 +1,4 @@
-package main
+package license
 
 import (
 	"bufio"
@@ -576,7 +576,34 @@ func groupLicenses(licenses []License) ([]License, error) {
 	return kept, nil
 }
 
-func printLicenses() error {
+type Options struct {
+	RunAll                  bool
+	Words                   bool
+	PrintConfidence         bool
+	UseCsv                  bool
+	PrunePath               string
+	HelperListGlooPkgs      bool
+	ConsolidatedLicenseFile string
+	ProductName             string
+	Pkgs                    []string
+}
+
+func PrintLicenses() error {
+	opts := &Options{}
+	flag.BoolVar(&opts.RunAll, "a", false, "display all individual packages")
+	flag.BoolVar(&opts.Words, "w", false, "display words not matching license template")
+	flag.BoolVar(&opts.PrintConfidence, "print-confidence", false, "display confidence level (default false)")
+	flag.BoolVar(&opts.UseCsv, "csv", false, "print in csv format (default false)")
+	flag.StringVar(&opts.PrunePath, "prune-path", "", "prefix path to remove from the package and file specs during display output, ex: 'github.com/solo-io/gloo/vendor/'")
+	flag.BoolVar(&opts.HelperListGlooPkgs, "helper-list-gloo-pkgs", false, "if set, will just print the list of packages concerning Gloo")
+	flag.StringVar(&opts.ConsolidatedLicenseFile, "consolidated-license-file", "", "if set, will write all of the licenses' text to this file")
+	flag.StringVar(&opts.ProductName, "product-name", glooProductName, "defaults to gloo, indicates which product is under analysis. Used for product-specific customizations such as manual license specification.")
+	flag.Parse()
+	opts.Pkgs = flag.Args()
+	return PrintLicensesWithOptions(opts)
+
+}
+func PrintLicensesWithOptions(opts *Options) error {
 	flag.Usage = func() {
 		fmt.Println(`Usage: licenses IMPORTPATH...
 
@@ -594,16 +621,7 @@ displayed. It helps assessing the changes importance.
 `)
 		os.Exit(1)
 	}
-	all := flag.Bool("a", false, "display all individual packages")
-	words := flag.Bool("w", false, "display words not matching license template")
-	printConfidence := flag.Bool("print-confidence", false, "display confidence level (default false)")
-	useCsv := flag.Bool("csv", false, "print in csv format (default false)")
-	prunePath := flag.String("prune-path", "", "prefix path to remove from the package and file specs during display output, ex: 'github.com/solo-io/gloo/vendor/'")
-	helperListGlooPkgs := flag.Bool("helper-list-gloo-pkgs", false, "if set, will just print the list of packages concerning Gloo")
-	consolidatedLicenseFile := flag.String("consolidated-license-file", "", "if set, will write all of the licenses' text to this file")
-	productName := flag.String("product-name", glooProductName, "defaults to gloo, indicates which product is under analysis. Used for product-specific customizations such as manual license specification.")
-	flag.Parse()
-	if *helperListGlooPkgs {
+	if opts.HelperListGlooPkgs {
 		printGlooPkgNames()
 		return nil
 	}
@@ -611,20 +629,19 @@ displayed. It helps assessing the changes importance.
 	if flag.NArg() < 1 {
 		return fmt.Errorf("expect at least one package argument")
 	}
-	pkgs := flag.Args()
 
 	confidence := 0.9
-	licenses, err := listLicenses("", pkgs)
+	licenses, err := listLicenses("", opts.Pkgs)
 	if err != nil {
 		return err
 	}
-	if !*all {
+	if !opts.RunAll {
 		licenses, err = groupLicenses(licenses)
 		if err != nil {
 			return err
 		}
 	}
-	switch *productName {
+	switch opts.ProductName {
 	case glooProductName:
 		licenses = append(licenses, nonDepGlooDependencyLicenses...)
 	}
@@ -639,19 +656,19 @@ displayed. It helps assessing the changes importance.
 				includedLicenses = append(includedLicenses, l)
 			} else if l.Score >= confidence {
 				includedLicenses = append(includedLicenses, l)
-				if *printConfidence {
+				if opts.PrintConfidence {
 					license = fmt.Sprintf("%s (%2d%%)", l.Template.Title, int(100*l.Score))
 				} else {
 					license = fmt.Sprintf("%s", l.Template.Title)
 				}
-				if *words && len(l.ExtraWords) > 0 {
+				if opts.Words && len(l.ExtraWords) > 0 {
 					license += "\n\t+words: " + strings.Join(l.ExtraWords, ", ")
 				}
-				if *words && len(l.MissingWords) > 0 {
+				if opts.Words && len(l.MissingWords) > 0 {
 					license += "\n\t-words: " + strings.Join(l.MissingWords, ", ")
 				}
 			} else {
-				if *printConfidence {
+				if opts.PrintConfidence {
 					license = fmt.Sprintf("? (%s, %2d%%)", l.Template.Title, int(100*l.Score))
 				} else {
 					license = "UNKNOWN"
@@ -663,13 +680,13 @@ displayed. It helps assessing the changes importance.
 		packageString := l.Package
 		pathString := l.ManualPath
 		if pathString == "" {
-			pathString = getPathString(l.Path, *prunePath, replacer)
+			pathString = getPathString(l.Path, opts.PrunePath, replacer)
 		}
-		if *prunePath != "" {
-			packageString = strings.TrimPrefix(packageString, *prunePath)
+		if opts.PrunePath != "" {
+			packageString = strings.TrimPrefix(packageString, opts.PrunePath)
 		}
 		license = refineLicenseName(packageString, license)
-		if *useCsv {
+		if opts.UseCsv {
 			err = csvW.Write([]string{packageString, pathString, license})
 		} else {
 			_, err = w.Write([]byte(packageString + "\t" + license + "\n"))
@@ -678,12 +695,12 @@ displayed. It helps assessing the changes importance.
 			return err
 		}
 	}
-	if *consolidatedLicenseFile != "" {
-		if err := writeConsolidatedLicenseFile(*consolidatedLicenseFile, includedLicenses); err != nil {
+	if opts.ConsolidatedLicenseFile != "" {
+		if err := writeConsolidatedLicenseFile(opts.ConsolidatedLicenseFile, includedLicenses); err != nil {
 			return fmt.Errorf("unable to write consolidated license file %v", err)
 		}
 	}
-	if *useCsv {
+	if opts.UseCsv {
 		csvW.Flush()
 		return nil
 	}
@@ -796,13 +813,5 @@ func refineLicenseName(pkg, candidate string) string {
 		return licenseMIT
 	default:
 		return candidate
-	}
-}
-
-func main() {
-	err := printLicenses()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s\n", err)
-		os.Exit(1)
 	}
 }
