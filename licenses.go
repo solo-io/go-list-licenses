@@ -19,6 +19,41 @@ import (
 	"github.com/solo-io/go-list-licenses/assets"
 )
 
+var glooCommonBinaryPath = "github.com/solo-io/gloo/projects/%v/cmd"
+
+var glooBinaries = []string{
+	"accesslogger",
+	"discovery",
+	"envoyinit",
+	"gateway",
+	"gloo",
+	"ingress",
+	// non-standard projects:
+	//"hypergloo",
+	//"knative",
+	//"clusteringress",
+	//"metrics",
+}
+var glooBinariesNonStandard = []string{
+	"github.com/solo-io/gloo/projects/hypergloo",
+}
+
+func printGlooPkgNames() {
+	names := make([]string, len(glooBinaries)+len(glooBinariesNonStandard))
+	var index int
+	for i, b := range glooBinaries {
+		names[i] = fmt.Sprintf(glooCommonBinaryPath, b)
+		index = i
+	}
+	for _, b := range glooBinariesNonStandard {
+		index++
+		names[index] = b
+	}
+	// print in the form expected by the main license check - you can paste this result into the arguments list to
+	// run the license analysis on all the binaries that Gloo produces
+	fmt.Println(strings.Join(names, " "))
+}
+
 type Template struct {
 	Title    string
 	Nickname string
@@ -557,7 +592,12 @@ displayed. It helps assessing the changes importance.
 	printConfidence := flag.Bool("print-confidence", false, "display confidence level (default false)")
 	useCsv := flag.Bool("csv", false, "print in csv format (default false)")
 	prunePath := flag.String("prune-path", "", "prefix path to remove from the package and file specs during display output, ex: 'github.com/solo-io/gloo/vendor/'")
+	helperListGlooPkgs := flag.Bool("helper-list-gloo-pkgs", false, "if set, will just print the list of packages concerning Gloo")
 	flag.Parse()
+	if *helperListGlooPkgs {
+		printGlooPkgNames()
+		return nil
+	}
 	replacer := getPathReplacer()
 	if flag.NArg() < 1 {
 		return fmt.Errorf("expect at least one package argument")
@@ -637,6 +677,7 @@ func getPathReplacer() *strings.Replacer {
 		"contrib.go.opencensus.io/exporter/prometheus", "github.com/census-ecosystem/opencensus-go-exporter-prometheus",
 		"google.golang.org/genproto", "github.com/googleapis/go-genproto",
 		"sigs.k8s.io", "github.com/kubernetes-sigs",
+		"knative.dev", "github.com/knative",
 	)
 }
 
