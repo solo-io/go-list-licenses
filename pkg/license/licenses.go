@@ -590,20 +590,6 @@ type Options struct {
 
 func PrintLicenses() error {
 	opts := &Options{}
-	flag.BoolVar(&opts.RunAll, "a", false, "display all individual packages")
-	flag.BoolVar(&opts.Words, "w", false, "display words not matching license template")
-	flag.BoolVar(&opts.PrintConfidence, "print-confidence", false, "display confidence level (default false)")
-	flag.BoolVar(&opts.UseCsv, "csv", false, "print in csv format (default false)")
-	flag.StringVar(&opts.PrunePath, "prune-path", "", "prefix path to remove from the package and file specs during display output, ex: 'github.com/solo-io/gloo/vendor/'")
-	flag.BoolVar(&opts.HelperListGlooPkgs, "helper-list-gloo-pkgs", false, "if set, will just print the list of packages concerning Gloo")
-	flag.StringVar(&opts.ConsolidatedLicenseFile, "consolidated-license-file", "", "if set, will write all of the licenses' text to this file")
-	flag.StringVar(&opts.ProductName, "product-name", glooProductName, "defaults to gloo, indicates which product is under analysis. Used for product-specific customizations such as manual license specification.")
-	flag.Parse()
-	opts.Pkgs = flag.Args()
-	return PrintLicensesWithOptions(opts)
-
-}
-func PrintLicensesWithOptions(opts *Options) error {
 	flag.Usage = func() {
 		fmt.Println(`Usage: licenses IMPORTPATH...
 
@@ -621,12 +607,26 @@ displayed. It helps assessing the changes importance.
 `)
 		os.Exit(1)
 	}
+	flag.BoolVar(&opts.RunAll, "a", false, "display all individual packages")
+	flag.BoolVar(&opts.Words, "w", false, "display words not matching license template")
+	flag.BoolVar(&opts.PrintConfidence, "print-confidence", false, "display confidence level (default false)")
+	flag.BoolVar(&opts.UseCsv, "csv", false, "print in csv format (default false)")
+	flag.StringVar(&opts.PrunePath, "prune-path", "", "prefix path to remove from the package and file specs during display output, ex: 'github.com/solo-io/gloo/vendor/'")
+	flag.BoolVar(&opts.HelperListGlooPkgs, "helper-list-gloo-pkgs", false, "if set, will just print the list of packages concerning Gloo")
+	flag.StringVar(&opts.ConsolidatedLicenseFile, "consolidated-license-file", "", "if set, will write all of the licenses' text to this file")
+	flag.StringVar(&opts.ProductName, "product-name", glooProductName, "defaults to gloo, indicates which product is under analysis. Used for product-specific customizations such as manual license specification.")
+	flag.Parse()
+	opts.Pkgs = flag.Args()
+	return PrintLicensesWithOptions(opts)
+
+}
+func PrintLicensesWithOptions(opts *Options) error {
 	if opts.HelperListGlooPkgs {
 		printGlooPkgNames()
 		return nil
 	}
 	replacer := getPathReplacer()
-	if flag.NArg() < 1 {
+	if len(opts.Pkgs) < 1 {
 		return fmt.Errorf("expect at least one package argument")
 	}
 
