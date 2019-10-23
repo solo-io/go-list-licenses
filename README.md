@@ -4,11 +4,47 @@ Fork of https://github.com/pmezard/licenses
   - CSV output
   - Link to actual license
   - Option to output a list of all licenses
+  - Export core function
+  - Adaptations for ease of use in https://github.com/solo-io/gloo
+    - May add other product-specific helpers in the future
 
 # Usage
 
+## Import into another binary
+
+- define `Options` instead of passing flags
+```go
+import "github.com/solo-io/go-list-licenses/pkg/license"
+
+func run() error {
+	glooOptions := &license.Options{
+		RunAll:                  false,
+		Words:                   false,
+		PrintConfidence:         false,
+		UseCsv:                  true,
+		PrunePath:               "github.com/solo-io/gloo/vendor/",
+		HelperListGlooPkgs:      false,
+		ConsolidatedLicenseFile: "third_party_licenses.txt",
+		ProductName:             "gloo",
+		Pkgs: []string{
+			"github.com/solo-io/gloo/projects/accesslogger/cmd",
+			"github.com/solo-io/gloo/projects/discovery/cmd",
+			"github.com/solo-io/gloo/projects/envoyinit/cmd",
+			"github.com/solo-io/gloo/projects/gateway/cmd",
+			"github.com/solo-io/gloo/projects/gloo/cmd",
+			"github.com/solo-io/gloo/projects/ingress/cmd",
+			"github.com/solo-io/gloo/projects/hypergloo",
+		},
+	}
+	return license.PrintLicensesWithOptions(glooOptions)
+}
+```
+
+## Run as a script with commandline flags
+- must be run from within $GOROOT
+  - For analyzing go mod projects, consider using https://github.com/mitchellh/golicense instead
 ```bash
-# first compile with go build -o analyze-licenses *.go
+# first compile with go build -o analyze-licenses main.go
 # cd to the gloo directory
 # run the command on all gloo binaries:
 ~/git/github.com/solo-io/go-list-licenses/analyze-licenses \
