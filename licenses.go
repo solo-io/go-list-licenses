@@ -154,6 +154,7 @@ type MatchResult struct {
 	Score        float64
 	ExtraWords   []string
 	MissingWords []string
+	FileContent  []byte
 }
 
 func sortAndReturnWords(words []Word) []string {
@@ -210,6 +211,7 @@ func matchTemplates(license []byte, templates []*Template) MatchResult {
 		Score:        bestScore,
 		ExtraWords:   sortAndReturnWords(bestExtra),
 		MissingWords: sortAndReturnWords(bestMissing),
+		FileContent:  license,
 	}
 }
 
@@ -411,13 +413,17 @@ func findLicense(info *PkgInfo) (string, error) {
 }
 
 type License struct {
-	Package      string
-	Score        float64
-	Template     *Template
-	Path         string
+	Package  string
+	Score    float64
+	Template *Template
+	Path     string
+	// ManualPath indicates the URI of the license file. If provided, overrides the auto-generated URI path
+	ManualPath   string
 	Err          string
 	ExtraWords   []string
 	MissingWords []string
+	// text from the license file
+	FileContent []byte
 }
 
 func listLicenses(gopath string, pkgs []string) ([]License, error) {
@@ -485,6 +491,7 @@ func listLicenses(gopath string, pkgs []string) ([]License, error) {
 			license.Template = m.Template
 			license.ExtraWords = m.ExtraWords
 			license.MissingWords = m.MissingWords
+			license.FileContent = m.FileContent
 		}
 		licenses = append(licenses, license)
 	}
@@ -593,6 +600,8 @@ displayed. It helps assessing the changes importance.
 	useCsv := flag.Bool("csv", false, "print in csv format (default false)")
 	prunePath := flag.String("prune-path", "", "prefix path to remove from the package and file specs during display output, ex: 'github.com/solo-io/gloo/vendor/'")
 	helperListGlooPkgs := flag.Bool("helper-list-gloo-pkgs", false, "if set, will just print the list of packages concerning Gloo")
+	consolidatedLicenseFile := flag.String("consolidated-license-file", "", "if set, will write all of the licenses' text to this file")
+	productName := flag.String("product-name", glooProductName, "defaults to gloo, indicates which product is under analysis. Used for product-specific customizations such as manual license specification.")
 	flag.Parse()
 	if *helperListGlooPkgs {
 		printGlooPkgNames()
@@ -615,14 +624,21 @@ displayed. It helps assessing the changes importance.
 			return err
 		}
 	}
+	switch *productName {
+	case glooProductName:
+		licenses = append(licenses, nonDepGlooDependencyLicenses...)
+	}
 	w := tabwriter.NewWriter(os.Stdout, 1, 4, 2, ' ', 0)
 	csvW := csv.NewWriter(os.Stdout)
+	var includedLicenses []License
 	for _, l := range licenses {
 		license := "?"
 		if l.Template != nil {
 			if l.Score > .99 {
 				license = fmt.Sprintf("%s", l.Template.Title)
+				includedLicenses = append(includedLicenses, l)
 			} else if l.Score >= confidence {
+				includedLicenses = append(includedLicenses, l)
 				if *printConfidence {
 					license = fmt.Sprintf("%s (%2d%%)", l.Template.Title, int(100*l.Score))
 				} else {
@@ -645,7 +661,10 @@ displayed. It helps assessing the changes importance.
 			license = strings.Replace(l.Err, "\n", " ", -1)
 		}
 		packageString := l.Package
-		pathString := getPathString(l.Path, *prunePath, replacer)
+		pathString := l.ManualPath
+		if pathString == "" {
+			pathString = getPathString(l.Path, *prunePath, replacer)
+		}
 		if *prunePath != "" {
 			packageString = strings.TrimPrefix(packageString, *prunePath)
 		}
@@ -659,11 +678,38 @@ displayed. It helps assessing the changes importance.
 			return err
 		}
 	}
+	if *consolidatedLicenseFile != "" {
+		if err := writeConsolidatedLicenseFile(*consolidatedLicenseFile, includedLicenses); err != nil {
+			return fmt.Errorf("unable to write consolidated license file %v", err)
+		}
+	}
 	if *useCsv {
 		csvW.Flush()
 		return nil
 	}
-	return w.Flush()
+	if err := w.Flush(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func writeConsolidatedLicenseFile(outFile string, licenses []License) error {
+	f, err := os.Create(outFile)
+	if err != nil {
+		return err
+	}
+	for i, l := range licenses {
+		if _, err := f.WriteString(fmt.Sprintf("---\nIndex: %v\nPackage: %v\nLicense:\n", i, l.Package)); err != nil {
+			return err
+		}
+		if _, err := f.Write(l.FileContent); err != nil {
+			return err
+		}
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func getPathReplacer() *strings.Replacer {

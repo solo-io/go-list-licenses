@@ -8,12 +8,13 @@ Fork of https://github.com/pmezard/licenses
 # Usage
 
 ```bash
-# first compile with go build -o analyze-licenses licenses.go
+# first compile with go build -o analyze-licenses *.go
 # cd to the gloo directory
 # run the command on all gloo binaries:
 ~/git/github.com/solo-io/go-list-licenses/analyze-licenses \
     -prune-path github.com/solo-io/gloo/vendor/ \
     -csv \
+    -consolidated-license-file third_party_license_list.txt
     github.com/solo-io/gloo/projects/accesslogger/cmd \
     github.com/solo-io/gloo/projects/discovery/cmd \
     github.com/solo-io/gloo/projects/envoyinit/cmd \
