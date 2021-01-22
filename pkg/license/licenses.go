@@ -20,32 +20,6 @@ import (
 	"github.com/solo-io/go-list-licenses/assets"
 )
 
-var Licenses = map[string]interface{}{
-	"Academic Free License v3.0": true,
-	"GNU Affero General Public License v3.0": true,
-	"Apache License 2.0": true,
-	"Artistic License 2.0": true,
-	"BSD 2-clause \"Simplified\" License": true,
-	"BSD 3-clause \"New\" or \"Revised\" License": true,
-	"BSD 3-clause Clear License": true,
-	"Creative Commons Zero v1.0 Universal": true,
-	"Eclipse Public License 1.0": true,
-	"GNU General Public License v2.0": true,
-	"GNU General Public License v3.0": true,
-	"ISC License": true,
-	"GNU Lesser General Public License v2.1": true,
-	"GNU Lesser General Public License v3.0": true,
-	"MIT License": true,
-	"Mozilla Public License 2.0": true,
-	"Microsoft Public License": true,
-	"Microsoft Reciprocal License": true,
-	"No License": true,
-	"SIL Open Font License 1.1": true,
-	"Open Software License 3.0": true,
-	"The Unlicense": true,
-	"\"Do What The F*ck You Want To Public License\"": true,
-}
-
 type Template struct {
 	Title    string
 	Nickname string
@@ -80,6 +54,18 @@ func parseTemplate(content string) (*Template, error) {
 	}
 	t.Words = makeWordSet(text)
 	return &t, scanner.Err()
+}
+
+func GetTemplatesSet() (map[string]interface{}, error){
+	templates, err := loadTemplates()
+	if err != nil {
+		return nil, err
+	}
+	ret := map[string]interface{}{}
+	for _, t := range templates{
+		ret[t.Title] = true
+	}
+	return ret, nil
 }
 
 func loadTemplates() ([]*Template, error) {
@@ -471,6 +457,7 @@ func listLicenses(gopath string, pkgs []string) ([]License, error) {
 		}
 		license := License{
 			Package: info.ImportPath,
+			Path: path,
 		}
 		if path != "" {
 			fpath := filepath.Join(path)
@@ -489,7 +476,6 @@ func listLicenses(gopath string, pkgs []string) ([]License, error) {
 			license.MissingWords = m.MissingWords
 			license.FileContent = m.FileContent
 		}
-		license.Path = info.Root
 		licenses = append(licenses, license)
 	}
 	return licenses, nil
@@ -631,7 +617,7 @@ func PrintLicensesWithOptions(opts *Options) error {
 		return fmt.Errorf("expect at least one package argument")
 	}
 
-	confidence := 0.9
+	confidence := 0.7
 	licenses, err := listLicenses("", opts.Pkgs)
 	if err != nil {
 		return err
@@ -681,7 +667,6 @@ func PrintLicensesWithOptions(opts *Options) error {
 		if pathString == "" {
 			pathString = getPathString(l.Path, opts.PrunePath, replacer)
 		}
-		// pathString should also have version info
 		version := getVersion(pathString)
 		if opts.PrunePath != "" {
 			packageString = strings.TrimPrefix(packageString, opts.PrunePath)
@@ -737,12 +722,16 @@ func getMarkdownPackageLink(packageString string) string {
 		n := len(parts)
 		shortPkgName = strings.Join(parts[n-2:n], "/")
 	}
+	// format github links
+	if parts[0] == "github.com" && len(parts) > 2{
+		packageString = strings.Join(parts[:3], "/")
+	}
 	// format as markdown link
 	return fmt.Sprintf("[%s](https://%s)", shortPkgName, packageString)
 }
 
 func getVersion(pathString string) string {
-	regex := regexp.MustCompile("@(v.+)(?:\\/|$)")
+	regex := regexp.MustCompile("@(v.+)[\\/$]")
 	matches := regex.FindStringSubmatch(pathString)
 	if len(matches) < 1 {
 		return "latest"
