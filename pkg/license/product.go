@@ -55,6 +55,8 @@ const (
 
 func CommonOverrides(pkg, candidate string) string {
 	switch pkg {
+	case "github.com/k0kubun/pp":
+		return MITForm
 	case "github.com/ghodss/yaml":
 		return MITForm
 	case "github.com/jmespath/go-jmespath":

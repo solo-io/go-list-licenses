@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/solo-io/go-list-licenses/pkg/markdown"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -53,6 +54,18 @@ func parseTemplate(content string) (*Template, error) {
 	}
 	t.Words = makeWordSet(text)
 	return &t, scanner.Err()
+}
+
+func GetTemplatesSet() (map[string]interface{}, error){
+	templates, err := loadTemplates()
+	if err != nil {
+		return nil, err
+	}
+	ret := map[string]interface{}{}
+	for _, t := range templates{
+		ret[t.Title] = true
+	}
+	return ret, nil
 }
 
 func loadTemplates() ([]*Template, error) {
@@ -284,6 +297,7 @@ type PkgInfo struct {
 	Dir        string
 	Root       string
 	ImportPath string
+	Version string
 	Error      *PkgError
 }
 
@@ -354,7 +368,8 @@ func scoreLicenseName(name string) float64 {
 func findLicense(info *PkgInfo) (string, error) {
 	path := info.ImportPath
 	for ; path != "."; path = filepath.Dir(path) {
-		fis, err := ioutil.ReadDir(filepath.Join(info.Root, "src", path))
+		lookPath := info.Root
+		fis, err := ioutil.ReadDir(lookPath)
 		if err != nil {
 			return "", err
 		}
@@ -371,7 +386,7 @@ func findLicense(info *PkgInfo) (string, error) {
 			}
 		}
 		if bestName != "" {
-			return filepath.Join(path, bestName), nil
+			return filepath.Join(lookPath, bestName), nil
 		}
 	}
 	return "", nil
@@ -437,12 +452,15 @@ func listLicenses(gopath string, pkgs []string) ([]License, error) {
 		if err != nil {
 			return nil, err
 		}
+		if strings.Contains(info.ImportPath, "solo-io"){
+			continue
+		}
 		license := License{
 			Package: info.ImportPath,
-			Path:    path,
+			Path: path,
 		}
 		if path != "" {
-			fpath := filepath.Join(info.Root, "src", path)
+			fpath := filepath.Join(path)
 			m, ok := matched[fpath]
 			if !ok {
 				data, err := ioutil.ReadFile(fpath)
@@ -546,6 +564,7 @@ type Options struct {
 	Words                   bool
 	PrintConfidence         bool
 	UseCsv                  bool
+	UseMarkdown 			bool
 	PrunePath               string
 	HelperListGlooPkgs      bool
 	ConsolidatedLicenseFile string
@@ -578,6 +597,7 @@ The Product interface allows you to append or skip licenses.`)
 	flag.BoolVar(&opts.Words, "w", false, "display words not matching license template")
 	flag.BoolVar(&opts.PrintConfidence, "print-confidence", false, "display confidence level (default false)")
 	flag.BoolVar(&opts.UseCsv, "csv", false, "print in csv format (default false)")
+	flag.BoolVar(&opts.UseMarkdown, "markdown", false, "print in markdown table format (default false)")
 	flag.StringVar(&opts.PrunePath, "prune-path", "", "prefix path to remove from the package and file specs during display output, ex: 'github.com/solo-io/gloo/vendor/'")
 	flag.BoolVar(&opts.HelperListGlooPkgs, "helper-list-gloo-pkgs", false, "if set, will just print the list of packages concerning Gloo")
 	flag.StringVar(&opts.ConsolidatedLicenseFile, "consolidated-license-file", "", "if set, will write all of the licenses' text to this file")
@@ -597,7 +617,7 @@ func PrintLicensesWithOptions(opts *Options) error {
 		return fmt.Errorf("expect at least one package argument")
 	}
 
-	confidence := 0.9
+	confidence := 0.7
 	licenses, err := listLicenses("", opts.Pkgs)
 	if err != nil {
 		return err
@@ -611,11 +631,9 @@ func PrintLicensesWithOptions(opts *Options) error {
 	licenses = append(licenses, opts.Product.ExtraLicenses()...)
 	w := tabwriter.NewWriter(os.Stdout, 1, 4, 2, ' ', 0)
 	csvW := csv.NewWriter(os.Stdout)
+	mdW := markdown.NewWriter(os.Stdout, []string{"Name", "Version", "License"})
 	var includedLicenses []License
 	for _, l := range licenses {
-		if opts.Product.SkipLicense(l) {
-			continue
-		}
 		license := "?"
 		if l.Template != nil {
 			if l.Score > .99 {
@@ -649,12 +667,25 @@ func PrintLicensesWithOptions(opts *Options) error {
 		if pathString == "" {
 			pathString = getPathString(l.Path, opts.PrunePath, replacer)
 		}
+		version := getVersion(pathString)
 		if opts.PrunePath != "" {
 			packageString = strings.TrimPrefix(packageString, opts.PrunePath)
 		}
 		license = opts.Product.OverrideLicense(packageString, license)
+		if l.Template == nil {
+			l.Template = &Template{
+				Title: license,
+			}
+		}
+		if opts.Product.SkipLicense(l) {
+			continue
+		}
+
 		if opts.UseCsv {
-			err = csvW.Write([]string{packageString, pathString, license})
+			err = csvW.Write([]string{packageString, version,  pathString, license})
+		} else if opts.UseMarkdown{
+			mdPackageLink := getMarkdownPackageLink(packageString)
+			err = mdW.Write([]string{mdPackageLink, version, license})
 		} else {
 			_, err = w.Write([]byte(packageString + "\t" + license + "\n"))
 		}
@@ -671,10 +702,41 @@ func PrintLicensesWithOptions(opts *Options) error {
 		csvW.Flush()
 		return nil
 	}
+	if opts.UseMarkdown{
+		mdW.Flush()
+		return nil
+	}
 	if err := w.Flush(); err != nil {
 		return err
 	}
 	return nil
+}
+
+func getMarkdownPackageLink(packageString string) string {
+	parts := strings.Split(packageString, "/")
+	var shortPkgName string
+	// get last two parts of package string for descriptive package name
+	if len(parts) < 2{
+		shortPkgName = packageString
+	}else {
+		n := len(parts)
+		shortPkgName = strings.Join(parts[n-2:n], "/")
+	}
+	// format github links
+	if parts[0] == "github.com" && len(parts) > 2{
+		packageString = strings.Join(parts[:3], "/")
+	}
+	// format as markdown link
+	return fmt.Sprintf("[%s](https://%s)", shortPkgName, packageString)
+}
+
+func getVersion(pathString string) string {
+	regex := regexp.MustCompile("@(v.+)[\\/$]")
+	matches := regex.FindStringSubmatch(pathString)
+	if len(matches) < 1 {
+		return "latest"
+	}
+	return matches[1]
 }
 
 func writeConsolidatedLicenseFile(outFile string, licenses []License) error {
@@ -750,6 +812,5 @@ func getPathString(rawPath, trimPrefix string, replacer *strings.Replacer) strin
 			return refinedString
 		}
 	}
-	fmt.Printf("\n-----------\nDID NOT MATCH: %v\n--------\n", pathString)
 	return pathString
 }
