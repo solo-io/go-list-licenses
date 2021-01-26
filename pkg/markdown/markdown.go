@@ -10,6 +10,7 @@ import (
 type Writer struct {
 	w *bufio.Writer
 	headers []string
+	headerLen int
 }
 
 func NewWriter(w io.Writer, headers []string) *Writer {
@@ -27,6 +28,7 @@ func NewWriter(w io.Writer, headers []string) *Writer {
 		writer.w.WriteString(header)
 	}
 	writer.w.WriteString(fmt.Sprintf("\n%s\n", sep))
+	writer.headerLen = writer.w.Size()
 	return writer
 }
 
@@ -50,8 +52,14 @@ func (w *Writer) Write(record []string) error {
 	return err
 }
 
-// Flush writes any buffered data to the underlying io.Writer.
+// Flush writes any buffered data to the underlying io.Writer if any thing else other than the headers have been written.
 // To check if an error occurred during the Flush, call Error.
-func (w *Writer) Flush() {
-	w.w.Flush()
+func (w *Writer) Flush() error {
+	if w.w.Size() != w.headerLen{
+		err := w.w.Flush()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
