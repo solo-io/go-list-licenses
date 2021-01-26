@@ -28,7 +28,7 @@ func NewWriter(w io.Writer, headers []string) *Writer {
 		writer.w.WriteString(header)
 	}
 	writer.w.WriteString(fmt.Sprintf("\n%s\n", sep))
-	writer.headerLen = writer.w.Size()
+	writer.headerLen = writer.w.Buffered()
 	return writer
 }
 
@@ -55,7 +55,7 @@ func (w *Writer) Write(record []string) error {
 // Flush writes any buffered data to the underlying io.Writer if any thing else other than the headers have been written.
 // To check if an error occurred during the Flush, call Error.
 func (w *Writer) Flush() error {
-	if w.w.Size() != w.headerLen{
+	if w.w.Buffered() != w.headerLen{
 		err := w.w.Flush()
 		if err != nil {
 			return err
