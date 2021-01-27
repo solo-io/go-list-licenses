@@ -13,7 +13,7 @@ import (
 type CliOptions struct {
 	LicensesToSkip    []string
 	LicensesToInclude []string
-	LicensesToCheck []string
+	LicensesToCheck   []string
 }
 
 const (
@@ -22,7 +22,7 @@ const (
 	CheckLicenses   = "checkLicenses"
 )
 
-func Cli(pkgs []string) *cobra.Command {
+func Cli(pkgs, depsToSkip []string) *cobra.Command {
 	opts := &CliOptions{}
 	optionsFunc := func(app *cobra.Command) {
 		pflags := app.PersistentFlags()
@@ -55,7 +55,7 @@ func Cli(pkgs []string) *cobra.Command {
 					}
 					tempSet[l] = true
 				}
-				return run(pkgs, tempSet)
+				return run(pkgs, depsToSkip, tempSet)
 
 			}
 			if len(skippedLicenses) != 0 {
@@ -66,7 +66,7 @@ func Cli(pkgs []string) *cobra.Command {
 					}
 					delete(licensesToDisplay, l)
 				}
-				return run(pkgs, licensesToDisplay)
+				return run(pkgs, depsToSkip, licensesToDisplay)
 			}
 			if len(checkLicenses) != 0 {
 				tempSet := make(map[string]interface{})
@@ -88,7 +88,7 @@ func Cli(pkgs []string) *cobra.Command {
 					outC <- buf.String()
 				}()
 
-				err = run(pkgs, tempSet)
+				err = run(pkgs, depsToSkip, tempSet)
 
 				// back to normal state
 				w.Close()
@@ -100,12 +100,12 @@ func Cli(pkgs []string) *cobra.Command {
 				}
 				// Check for licenses, if packages exist, exit with 1
 				if out != "" {
-					return fmt.Errorf("one of these licenses were found in the dependencies: [%v]\n----Licenses----\n%v", strings.Join(checkLicenses,","), out)
+					return fmt.Errorf("one of these licenses were found in the dependencies: [%v]\n----Licenses----\n%v", strings.Join(checkLicenses, ","), out)
 				}
 				return nil
 			}
 			// evaluate all licenses if none of the flags were hit
-			return run(pkgs, licensesToDisplay)
+			return run(pkgs, depsToSkip, licensesToDisplay)
 		},
 	}
 
@@ -113,7 +113,10 @@ func Cli(pkgs []string) *cobra.Command {
 	return app
 }
 
-func run(pkgs []string, licenses map[string]interface{}) error {
+// pkgs are the packages in the module whose dependencies are analyzed for Licenses
+// depsToSkip are dependencies that will be skipped
+// licenses are the licenses (Apache License, Mozilla License) that will be handled
+func run(pkgs, depsToSkip []string, licenses map[string]interface{}) error {
 	glooOptions := &Options{
 		RunAll:             false,
 		Words:              false,
@@ -121,15 +124,10 @@ func run(pkgs []string, licenses map[string]interface{}) error {
 		UseMarkdown:        true,
 		HelperListGlooPkgs: false,
 		Pkgs:               pkgs,
-		Product:            NewGlooProductLicenseHandler(linuxTarget, licenses),
+		Product:            NewGlooProductLicenseHandler(depsToSkip, licenses),
 	}
 	return PrintLicensesWithOptions(glooOptions)
 }
-
-const (
-	linuxTarget = "linux"
-	macTarget   = "mac"
-)
 
 type LicenseValidator struct {
 	licenses map[string]interface{}
@@ -153,14 +151,14 @@ func (lv *LicenseValidator) validate(license string) error {
 }
 
 type GlooProductLicenseHandler struct {
-	TargetOs          string
-	LicensesToProcess map[string]interface{}
+	LicensesToProcess  map[string]interface{}
+	DependenciesToSkip []string
 }
 
-func NewGlooProductLicenseHandler(targetOs string, licensesToProcess map[string]interface{}) *GlooProductLicenseHandler {
+func NewGlooProductLicenseHandler(depsToSkip []string, licensesToProcess map[string]interface{}) *GlooProductLicenseHandler {
 	return &GlooProductLicenseHandler{
-		TargetOs:          targetOs,
-		LicensesToProcess: licensesToProcess,
+		LicensesToProcess:  licensesToProcess,
+		DependenciesToSkip: depsToSkip,
 	}
 }
 
@@ -169,9 +167,11 @@ func (lh *GlooProductLicenseHandler) SkipLicense(l License) bool {
 	if l.Template != nil && lh.LicensesToProcess[l.Template.Title] == nil {
 		return true
 	}
-	// only present on mac
-	if lh.TargetOs == linuxTarget && strings.Contains(l.Package, "github.com/mitchellh/go-homedir") {
-		return true
+	// Skip Licenses for Dependencies that are skipped.
+	for _, depToSkip := range lh.DependenciesToSkip {
+		if strings.Contains(l.Package, depToSkip){
+			return true
+		}
 	}
 	return false
 }
