@@ -100,7 +100,7 @@ func Cli(pkgs []string) *cobra.Command {
 				}
 				// Check for licenses, if packages exist, exit with 1
 				if out != "" {
-					os.Exit(1)
+					return fmt.Errorf("one of these licenses were found in the dependencies: [%v]\n----Licenses----\n%v", strings.Join(checkLicenses,","), out)
 				}
 				return nil
 			}
