@@ -190,7 +190,7 @@ func NewGlooProductLicenseHandler(depsToSkip []string, licensesToProcess map[str
 	dependenciesToSkip = append(dependenciesToSkip, depsToSkip...)
 	return &GlooProductLicenseHandler{
 		LicensesToProcess:  licensesToProcess,
-		DependenciesToSkip: depsToSkip,
+		DependenciesToSkip: dependenciesToSkip,
 	}
 }
 
