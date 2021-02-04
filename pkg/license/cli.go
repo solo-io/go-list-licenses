@@ -22,10 +22,17 @@ const (
 	IncludeLicenses = "includeLicenses"
 	CheckLicenses   = "checkLicenses"
 )
+// `go list ./...` is run to determine all packages necessary to examine the dependencies of
+func CliAllPackages(depsToSkip []string) (*cobra.Command, error){
+	allPackages, err := getAllModulePackages()
+	if err != nil {
+		return nil, err
+	}
+	return Cli(allPackages, depsToSkip), nil
+}
 
 // examines licenses of dependencies for any package in the pkgs array
 // dependencies that are in depsToSkip are not analyzed (for example, github.com/mitchellh/go-homedir which is needed in mac but not linux)
-// if pkgs is empty, `go list ./...` is run to determine all packages necessary
 func Cli(pkgs, depsToSkip []string) *cobra.Command {
 	opts := &CliOptions{}
 	optionsFunc := func(app *cobra.Command) {
@@ -121,14 +128,6 @@ func Cli(pkgs, depsToSkip []string) *cobra.Command {
 // depsToSkip are dependencies that will be skipped
 // licenses are the licenses (Apache License, Mozilla License) that will be handled
 func run(pkgs, depsToSkip []string, licenses map[string]interface{}) error {
-	// if no packages are explicitly specified to examine, examine all packages from `go list ./...`
-	if len(pkgs) == 0 {
-		var err error
-		pkgs, err = getAllModulePackages()
-		if err != nil {
-			return err
-		}
-	}
 
 	glooOptions := &Options{
 		RunAll:             false,
