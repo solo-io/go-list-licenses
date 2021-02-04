@@ -22,8 +22,9 @@ const (
 	IncludeLicenses = "includeLicenses"
 	CheckLicenses   = "checkLicenses"
 )
+
 // `go list ./...` is run to determine all packages necessary to examine the dependencies of
-func CliAllPackages(depsToSkip []string) (*cobra.Command, error){
+func CliAllPackages(depsToSkip []string) (*cobra.Command, error) {
 	allPackages, err := getAllModulePackages()
 	if err != nil {
 		return nil, err
@@ -177,7 +178,15 @@ type GlooProductLicenseHandler struct {
 	DependenciesToSkip []string
 }
 
+var dependenciesToSkip = []string{
+	"github.com/mitchellh/go-homedir",
+	"github.com/containerd/continuity",
+	"github.com/keybase/go-ps",
+	"github.com/golang/mock",
+}
+
 func NewGlooProductLicenseHandler(depsToSkip []string, licensesToProcess map[string]interface{}) *GlooProductLicenseHandler {
+	dependenciesToSkip = append(dependenciesToSkip, depsToSkip...)
 	return &GlooProductLicenseHandler{
 		LicensesToProcess:  licensesToProcess,
 		DependenciesToSkip: depsToSkip,
@@ -191,7 +200,7 @@ func (lh *GlooProductLicenseHandler) SkipLicense(l License) bool {
 	}
 	// Skip Licenses for Dependencies that are skipped.
 	for _, depToSkip := range lh.DependenciesToSkip {
-		if strings.Contains(l.Package, depToSkip){
+		if strings.Contains(l.Package, depToSkip) {
 			return true
 		}
 	}
