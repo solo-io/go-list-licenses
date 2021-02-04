@@ -183,6 +183,7 @@ var dependenciesToSkip = []string{
 	"github.com/containerd/continuity",
 	"github.com/keybase/go-ps",
 	"github.com/golang/mock",
+	"github.com/containerd/continuity",
 }
 
 func NewGlooProductLicenseHandler(depsToSkip []string, licensesToProcess map[string]interface{}) *GlooProductLicenseHandler {
