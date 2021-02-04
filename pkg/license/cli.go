@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -22,6 +23,9 @@ const (
 	CheckLicenses   = "checkLicenses"
 )
 
+// examines licenses of dependencies for any package in the pkgs array
+// dependencies that are in depsToSkip are not analyzed (for example, github.com/mitchellh/go-homedir which is needed in mac but not linux)
+// if pkgs is empty, `go list ./...` is run to determine all packages necessary
 func Cli(pkgs, depsToSkip []string) *cobra.Command {
 	opts := &CliOptions{}
 	optionsFunc := func(app *cobra.Command) {
@@ -117,6 +121,15 @@ func Cli(pkgs, depsToSkip []string) *cobra.Command {
 // depsToSkip are dependencies that will be skipped
 // licenses are the licenses (Apache License, Mozilla License) that will be handled
 func run(pkgs, depsToSkip []string, licenses map[string]interface{}) error {
+	// if no packages are explicitly specified to examine, examine all packages from `go list ./...`
+	if len(pkgs) == 0 {
+		var err error
+		pkgs, err = getAllModulePackages()
+		if err != nil {
+			return err
+		}
+	}
+
 	glooOptions := &Options{
 		RunAll:             false,
 		Words:              false,
@@ -127,6 +140,16 @@ func run(pkgs, depsToSkip []string, licenses map[string]interface{}) error {
 		Product:            NewGlooProductLicenseHandler(depsToSkip, licenses),
 	}
 	return PrintLicensesWithOptions(glooOptions)
+}
+
+func getAllModulePackages() ([]string, error) {
+	cmd := exec.Command("go", "list", "./...")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
+	outStr := string(out)
+	return strings.Split(outStr, "\n"), nil
 }
 
 type LicenseValidator struct {
