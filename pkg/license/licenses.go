@@ -684,9 +684,6 @@ func PrintLicensesWithOptions(opts *Options) error {
 		if opts.UseCsv {
 			err = csvW.Write([]string{packageString, version,  pathString, license})
 		} else if opts.UseMarkdown{
-			if strings.Contains(packageString, "darwincgo"){
-				print("hi")
-			}
 			mdPackageLink := getMarkdownPackageLink(packageString)
 			err = mdW.Write([]string{mdPackageLink, version, license})
 		} else {
