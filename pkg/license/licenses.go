@@ -724,7 +724,7 @@ func getMarkdownPackageLink(packageString string) string {
 	}
 	// format github links
 	if parts[0] == "github.com" && len(parts) > 2{
-		shortPkgName = strings.Join(parts[1:3], "/")
+		packageString = strings.Join(parts[:3], "/")
 	}
 	// format as markdown link
 	return fmt.Sprintf("[%s](https://%s)", shortPkgName, packageString)
