@@ -684,6 +684,9 @@ func PrintLicensesWithOptions(opts *Options) error {
 		if opts.UseCsv {
 			err = csvW.Write([]string{packageString, version,  pathString, license})
 		} else if opts.UseMarkdown{
+			if strings.Contains(packageString, "darwincgo"){
+				print("hi")
+			}
 			mdPackageLink := getMarkdownPackageLink(packageString)
 			err = mdW.Write([]string{mdPackageLink, version, license})
 		} else {
@@ -725,6 +728,7 @@ func getMarkdownPackageLink(packageString string) string {
 	// format github links
 	if parts[0] == "github.com" && len(parts) > 2{
 		packageString = strings.Join(parts[:3], "/")
+		shortPkgName = packageString
 	}
 	// format as markdown link
 	return fmt.Sprintf("[%s](https://%s)", shortPkgName, packageString)
