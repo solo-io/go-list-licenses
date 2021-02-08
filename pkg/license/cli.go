@@ -12,9 +12,10 @@ import (
 )
 
 type CliOptions struct {
-	LicensesToSkip    []string
-	LicensesToInclude []string
-	LicensesToCheck   []string
+	LicensesToSkip      []string
+	LicensesToInclude   []string
+	LicensesToCheck     []string
+	IncludeIndirectDeps bool
 }
 
 const (
@@ -41,7 +42,7 @@ func Cli(pkgs, depsToSkip []string) *cobra.Command {
 		pflags.StringSliceVarP(&opts.LicensesToSkip, SkipLicenses, "s", nil, "licenses to not include in the output list.")
 		pflags.StringSliceVarP(&opts.LicensesToInclude, IncludeLicenses, "i", nil, "only these licenses will be included in the list, if empty, all licenses will be included")
 		pflags.StringSliceVarP(&opts.LicensesToCheck, CheckLicenses, "c", nil, "only these licenses will be checked for. If any packages use these licenses, program will exit with status code 1.")
-
+		pflags.BoolVar(&opts.IncludeIndirectDeps, "include-indrect", false, "only examine direct dependencies from the module's go.mod")
 	}
 	app := &cobra.Command{
 		Use: "osagen",
@@ -67,7 +68,7 @@ func Cli(pkgs, depsToSkip []string) *cobra.Command {
 					}
 					tempSet[l] = true
 				}
-				return run(pkgs, depsToSkip, tempSet)
+				return run(pkgs, depsToSkip, tempSet, opts)
 
 			}
 			if len(skippedLicenses) != 0 {
@@ -78,7 +79,7 @@ func Cli(pkgs, depsToSkip []string) *cobra.Command {
 					}
 					delete(licensesToDisplay, l)
 				}
-				return run(pkgs, depsToSkip, licensesToDisplay)
+				return run(pkgs, depsToSkip, licensesToDisplay, opts)
 			}
 			if len(checkLicenses) != 0 {
 				tempSet := make(map[string]interface{})
@@ -100,7 +101,7 @@ func Cli(pkgs, depsToSkip []string) *cobra.Command {
 					outC <- buf.String()
 				}()
 
-				err = run(pkgs, depsToSkip, tempSet)
+				err = run(pkgs, depsToSkip, tempSet, opts)
 
 				// back to normal state
 				w.Close()
@@ -117,7 +118,7 @@ func Cli(pkgs, depsToSkip []string) *cobra.Command {
 				return nil
 			}
 			// evaluate all licenses if none of the flags were hit
-			return run(pkgs, depsToSkip, licensesToDisplay)
+			return run(pkgs, depsToSkip, licensesToDisplay, opts)
 		},
 	}
 
@@ -128,16 +129,17 @@ func Cli(pkgs, depsToSkip []string) *cobra.Command {
 // pkgs are the packages in the module whose dependencies are analyzed for Licenses
 // depsToSkip are dependencies that will be skipped
 // licenses are the licenses (Apache License, Mozilla License) that will be handled
-func run(pkgs, depsToSkip []string, licenses map[string]interface{}) error {
+func run(pkgs, depsToSkip []string, licenses map[string]interface{}, opts *CliOptions) error {
 
 	glooOptions := &Options{
-		RunAll:             false,
-		Words:              false,
-		PrintConfidence:    false,
-		UseMarkdown:        true,
-		HelperListGlooPkgs: false,
-		Pkgs:               pkgs,
-		Product:            NewGlooProductLicenseHandler(depsToSkip, licenses),
+		RunAll:              false,
+		Words:               false,
+		PrintConfidence:     false,
+		UseMarkdown:         true,
+		HelperListGlooPkgs:  false,
+		Pkgs:                pkgs,
+		Product:             NewGlooProductLicenseHandler(depsToSkip, licenses),
+		IncludeIndirectDeps: opts.IncludeIndirectDeps,
 	}
 	return PrintLicensesWithOptions(glooOptions)
 }
