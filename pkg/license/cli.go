@@ -42,7 +42,7 @@ func Cli(pkgs, depsToSkip []string) *cobra.Command {
 		pflags.StringSliceVarP(&opts.LicensesToSkip, SkipLicenses, "s", nil, "licenses to not include in the output list.")
 		pflags.StringSliceVarP(&opts.LicensesToInclude, IncludeLicenses, "i", nil, "only these licenses will be included in the list, if empty, all licenses will be included")
 		pflags.StringSliceVarP(&opts.LicensesToCheck, CheckLicenses, "c", nil, "only these licenses will be checked for. If any packages use these licenses, program will exit with status code 1.")
-		pflags.BoolVar(&opts.IncludeIndirectDeps, "include-indrect", false, "only examine direct dependencies from the module's go.mod")
+		pflags.BoolVar(&opts.IncludeIndirectDeps, "include-indirect", false, "only examine direct dependencies from the module's go.mod")
 	}
 	app := &cobra.Command{
 		Use: "osagen",
