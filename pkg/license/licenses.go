@@ -106,7 +106,7 @@ func listModDependencies(includeIndirectDeps bool) ([]*PkgInfo, error) {
 	cmd := exec.Command("go", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return errors.Wrap(err, "unable to download mod dependencies into mod cache")
+		return nil, errors.Wrap(err, "unable to download mod dependencies into mod cache")
 	}
 
 	// List all module dependencies
