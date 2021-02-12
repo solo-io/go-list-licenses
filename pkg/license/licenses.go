@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/solo-io/go-list-licenses/pkg/markdown"
+	"github.com/pkg/errors"
 	"os"
 	"os/exec"
 	"regexp"
@@ -100,9 +101,18 @@ func listPackagesAndDeps(gopath string, pkgs []string) ([]string, error) {
 // lists module dependencies
 // direct determines whether or not to list indirect dependencies
 func listModDependencies(includeIndirectDeps bool) ([]*PkgInfo, error) {
-	args := []string{"list", "-m","-f","{{.Path}}|{{.Version}}|{{.Indirect}}|{{.Dir}}","all"}
+	// Download all module dependencies into mod cache
+	args := []string{"mod", "download"}
 	cmd := exec.Command("go", args...)
 	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return errors.Wrap(err, "unable to download mod dependencies into mod cache")
+	}
+
+	// List all module dependencies
+	args = []string{"list", "-m","-f","{{.Path}}|{{.Version}}|{{.Indirect}}|{{.Dir}}","all"}
+	cmd = exec.Command("go", args...)
+	out, err = cmd.CombinedOutput()
 	output := string(out)
 	if err != nil {
 		if strings.Contains(output, "cannot find package") ||
