@@ -116,7 +116,13 @@ func listModDependencies(includeIndirectDeps bool) ([]*PkgInfo, error) {
 	for _, dependency := range strings.Split(output, "\n"){
 		// {{.Path}}|{{.Version}}|{{.Indirect}}|{{.Dir}}
 		info :=  strings.Split(dependency, "|")
-		if len(info) != 4 || info[1] == "" {
+		anyEmpty := false
+		for _, part := range info {
+			if len(part) == 0 {
+				anyEmpty = true
+			}
+		}
+		if len(info) != 4 || anyEmpty {
 			continue
 		}
 		indirectDep, err := strconv.ParseBool(info[2])

@@ -5,13 +5,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/solo-io/go-list-licenses/assets"
 	"io/ioutil"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/pkg/errors"
+	"github.com/solo-io/go-list-licenses/assets"
 )
 
 type Template struct {
@@ -262,7 +264,8 @@ func findLicense(info *PkgInfo) (string, error) {
 	lookPath := info.Root
 	fis, err := ioutil.ReadDir(lookPath)
 	if err != nil {
-		return "", err
+		println(fmt.Sprintf("%+v\n", info))
+		return "", errors.Wrapf(err, "unable to read dir at %s", lookPath)
 	}
 	bestScore := float64(0)
 	bestName := ""
@@ -310,7 +313,7 @@ func listLicenses(pkgs []string, includeIndirectDeps bool) ([]License, error) {
 			return nil, err
 		}
 		return nil, fmt.Errorf("could not list %s dependencies: %s",
-				strings.Join(pkgs, " "), err)
+			strings.Join(pkgs, " "), err)
 	}
 
 	// Cache matched licenses by path. Useful for package with a lot of
@@ -346,7 +349,7 @@ func listLicenses(pkgs []string, includeIndirectDeps bool) ([]License, error) {
 			if !ok {
 				data, err := ioutil.ReadFile(fpath)
 				if err != nil {
-					return nil, err
+					return nil, errors.Wrapf(err, "Unable to read file at %s", fpath)
 				}
 				m = matchTemplates(data, templates)
 				matched[fpath] = m
