@@ -24,7 +24,7 @@ const (
 	CheckLicenses   = "checkLicenses"
 )
 
-// `go list ./...` is run to determine all packages necessary to examine the dependencies of
+// `go list -e ./...` is run to determine all packages necessary to examine the dependencies of
 func CliAllPackages(depsToSkip []string) (*cobra.Command, error) {
 	allPackages, err := getAllModulePackages()
 	if err != nil {
@@ -145,7 +145,7 @@ func run(pkgs, depsToSkip []string, licenses map[string]interface{}, opts *CliOp
 }
 
 func getAllModulePackages() ([]string, error) {
-	cmd := exec.Command("go", "list", "./...")
+	cmd := exec.Command("go", "list", "-e", "./...")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, err
