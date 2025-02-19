@@ -1,3 +1,5 @@
+> For the next person looking at this repo, the tests are failing.
+
 Fork of https://github.com/pmezard/licenses
 
 - Modified to include:
